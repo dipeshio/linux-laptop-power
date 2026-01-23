@@ -6,7 +6,7 @@
 # =============================================================================
 
 # Configuration
-DURATION_MINUTES=${MONITOR_DURATION:-15}
+DURATION_MINUTES=${MONITOR_DURATION:-45}
 SAMPLE_INTERVAL=15  # seconds
 TOTAL_SAMPLES=$((DURATION_MINUTES * 60 / SAMPLE_INTERVAL))
 
