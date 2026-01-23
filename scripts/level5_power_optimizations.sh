@@ -259,6 +259,10 @@ RUNTIME_PM_ON_BAT=auto
 # I/O scheduler
 DISK_IOSCHED="mq-deadline mq-deadline"
 
+# WiFi Power Management (OFF to fix throttling/instability)
+WIFI_PWR_ON_AC=off
+WIFI_PWR_ON_BAT=off
+
 # SATA Aggressive Link Power Management
 SATA_LINKPWR_ON_AC="med_power_with_dipm"
 SATA_LINKPWR_ON_BAT="min_power"
