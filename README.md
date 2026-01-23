@@ -1,174 +1,104 @@
-# ⚡ Power Optimization for Linux Laptops
+# Power Config for Laptop
 
 ```
-    ____                            ______            _____
-   / __ \____ _      _____  _____  / ____/___  ____  / __(_)___ _
-  / /_/ / __ \ | /| / / _ \/ ___/ / /   / __ \/ __ \/ /_/ / __ `/
- / ____/ /_/ / |/ |/ /  __/ /    / /___/ /_/ / / / / __/ / /_/ /
-/_/    \____/|__/|__/\___/_/     \____/\____/_/ /_/_/ /_/\__, /
-                                                        /____/
-         For Lenovo Slim 7i / Intel Alder Lake / Linux Mint 22
+ ____                        ____             __ _
+|  _ \ _____      _____ _ __|  _ \ ___  _ __ / _(_) __ _
+| |_) / _ \ \ /\ / / _ \ '__| |_) / _ \| '_ \| |_| |/ _` |
+|  __/ (_/ \ V  V /  __/ |  |  __/ (_/ | | | |  _| | (_| |
+|_|   \___/ \_/\_/ \___|_|  |_|   \___/|_| |_|_| |_|\__, |
+                                                    |___/
 ```
+
+Linux power optimization scripts for Intel Alder Lake laptops.  
+Tested on Lenovo Slim 7i / Linux Mint 22.
 
 ---
 
-## 🎯 What This Does
+## Results
 
-Takes your laptop from **~22W idle** down to **~8-9W idle**, effectively **doubling battery life**.
-
----
-
-## 📁 Architecture
-
-```
-power-config-for-laptop/
-│
-├── scripts/
-│   ├── level5_power_optimizations.sh   # Intelligence: oomd, ananicy, auto-brightness
-│   ├── level6_power_optimizations.sh   # Deep: Resolution switch, GuC/HuC, adblock
-│   ├── level7_power_optimizations.sh   # Final: PowerTop, IPv6 off, BT on-demand
-│   │
-│   ├── monitor.sh                      # 📊 Performance monitoring (15-min sessions)
-│   ├── display_status.sh               # 👁️ Real-time display/power status
-│   ├── set_brightness.sh               # 🔆 Quick brightness control
-│   └── test_undervolt.sh               # 🔧 Power limit testing
-│
-├── configs/
-│   ├── tlp.conf                        # TLP configuration backup
-│   └── intel-undervolt.conf            # Power limits (PL1/PL2)
-│
-└── logs/                               # Monitoring logs
-```
+| Metric       | Before | After |
+| ------------ | ------ | ----- |
+| Idle Power   | ~22W   | ~9W   |
+| Battery Life | ~2h    | ~5h   |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# Clone
 git clone https://github.com/dipeshio/power-config-for-laptop.git
 cd power-config-for-laptop
 
-# Run optimization levels (each builds on previous)
 sudo bash scripts/level5_power_optimizations.sh
 sudo bash scripts/level6_power_optimizations.sh
 sudo bash scripts/level7_power_optimizations.sh
 
-# Reboot to apply kernel params
 sudo reboot
 ```
 
 ---
 
-## 📜 Script Descriptions
+## Scripts
 
-### Level 5: Intelligence & Automation
+### Optimization Levels
 
-| Component           | What It Does                                       |
-| ------------------- | -------------------------------------------------- |
-| **systemd-oomd**    | Kills memory hogs before system freezes            |
-| **ananicy-cpp**     | Auto-lowers priority of browsers & background apps |
-| **Auto-Brightness** | Adjusts screen based on ambient light sensor       |
-| **TLP Enhanced**    | Runtime power management for all devices           |
+| Script   | Description                                        |
+| -------- | -------------------------------------------------- |
+| `level5` | oomd, ananicy-cpp, auto-brightness, TLP tuning     |
+| `level6` | Resolution switching, GuC/HuC, filesystem, adblock |
+| `level7` | PowerTop auto-tune, IPv6 off, Bluetooth on-demand  |
 
-### Level 6: Deep Hardware Tuning
+### Utilities
 
-| Component             | What It Does                                |
-| --------------------- | ------------------------------------------- |
-| **Resolution Switch** | 1920x1200 on battery, 2880x1800 on AC       |
-| **Intel GuC/HuC**     | Offloads video scheduling to GPU firmware   |
-| **Filesystem Tune**   | Reduces disk writes with noatime, commit=60 |
-| **Ad-Blocking**       | Blocks 70k+ ad domains system-wide          |
-| **Webcam Toggle**     | Disables webcam driver on battery           |
-
-### Level 7: Final Polish
-
-| Component               | What It Does                              |
-| ----------------------- | ----------------------------------------- |
-| **PowerTop**            | Applies all power optimizations at boot   |
-| **IPv6 Disable**        | Reduces network overhead                  |
-| **Bluetooth On-Demand** | Disabled at boot, starts when you need it |
+| Script                   | Description                       |
+| ------------------------ | --------------------------------- |
+| `display_status.sh`      | Real-time power/display monitor   |
+| `performance_monitor.sh` | 15-minute power profiling session |
+| `set_brightness.sh`      | Quick brightness control          |
 
 ---
 
-## 🖥️ Real-Time Monitoring
+## Architecture
 
-```bash
-# Watch display/power switching live
-bash scripts/display_status.sh
+```
+scripts/
+├── level5_power_optimizations.sh
+├── level6_power_optimizations.sh
+├── level7_power_optimizations.sh
+├── display_status.sh
+├── performance_monitor.sh
+└── set_brightness.sh
 
-# Run a power profiling session (5 minutes)
-bash scripts/monitor.sh 5
+configs/
+├── tlp.conf
+└── intel-undervolt.conf
 ```
 
 ---
 
-## ⚙️ Data Flow
+## How It Works
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         POWER EVENT                             │
-│                    (Plug in / Unplug AC)                        │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       UDEV RULES                                │
-│             /etc/udev/rules.d/99-power-*.rules                  │
-│                                                                 │
-│   ┌─────────────────┐    ┌─────────────────┐                    │
-│   │ Display Switch  │    │ Device Toggle   │                    │
-│   │   (xrandr)      │    │  (modprobe)     │                    │
-│   └────────┬────────┘    └────────┬────────┘                    │
-└────────────┼─────────────────────┼──────────────────────────────┘
-             │                     │
-             ▼                     ▼
-┌────────────────────┐    ┌────────────────────┐
-│  Battery Mode      │    │    AC Mode         │
-│  • 1920x1200@1.5x  │    │  • 2880x1800@1.0x  │
-│  • Webcam OFF      │    │  • Webcam ON       │
-│  • Low performance │    │  • Full performance│
-└────────────────────┘    └────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                      BOOT SERVICES                              │
-│                                                                 │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│   │ powertop     │  │ ananicy-cpp  │  │ auto-        │          │
-│   │ --auto-tune  │  │ (nice/ionice)│  │ brightness   │          │
-│   └──────────────┘  └──────────────┘  └──────────────┘          │
-│                                                                 │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│   │ TLP          │  │ intel-       │  │ systemd-     │          │
-│   │ (power mgmt) │  │ undervolt    │  │ oomd         │          │
-│   └──────────────┘  └──────────────┘  └──────────────┘          │
-└─────────────────────────────────────────────────────────────────┘
+Power Event (plug/unplug)
+         │
+         ▼
+    Udev Rules
+         │
+    ┌────┴────┐
+    ▼         ▼
+ Battery     AC
+ 1920x1200   2880x1800
+ Webcam OFF  Webcam ON
 ```
 
 ---
 
-## 📊 Results
+## Requirements
 
-| Metric       | Before | After | Change    |
-| ------------ | ------ | ----- | --------- |
-| Idle Power   | ~22W   | ~9W   | **-60%**  |
-| Max Power    | ~35W   | ~15W  | **-57%**  |
-| Battery Life | ~2h    | ~5h   | **+150%** |
+- Linux Mint 22 / Ubuntu 24.04
+- Intel 12th gen or newer
+- TLP, powertop, intel-undervolt
 
 ---
 
-## 🔧 Requirements
-
-- Linux Mint 22 / Ubuntu 24.04 or similar
-- Intel Alder Lake (12th gen) or newer
-- TLP, powertop, intel-undervolt installed
-
----
-
-## 📄 License
-
-MIT - Do whatever you want with this.
-
----
-
-_Made with ⚡ by dipeshio_
+MIT License
