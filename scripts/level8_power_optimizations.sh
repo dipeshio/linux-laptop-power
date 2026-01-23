@@ -92,11 +92,12 @@ if [ -f "$VIVALDI_DESKTOP" ]; then
     mkdir -p "$REAL_HOME/.local/share/applications"
     cp "$VIVALDI_DESKTOP" "$LOCAL_VIVALDI"
     
-    # Add power-saving flags
+    # Add power-saving flags AND preserve user's scale factor 1.8
     # --enable-features=TurnOffStreamingMediaCachingOnBattery - reduces caching on battery
     # --disable-backgrounding-occluded-windows - suspends hidden tabs more aggressively
     # --disable-renderer-backgrounding - related to above
-    sed -i 's|Exec=/usr/bin/vivaldi-stable|Exec=/usr/bin/vivaldi-stable --enable-features=TurnOffStreamingMediaCachingOnBattery,UseOzonePlatform --disable-backgrounding-occluded-windows|' "$LOCAL_VIVALDI"
+    # --force-device-scale-factor=1.8 - User preference
+    sed -i 's|Exec=/usr/bin/vivaldi-stable|Exec=/usr/bin/vivaldi-stable --force-device-scale-factor=1.8 --enable-features=TurnOffStreamingMediaCachingOnBattery,UseOzonePlatform --disable-backgrounding-occluded-windows|' "$LOCAL_VIVALDI"
     chown $REAL_USER:$REAL_USER "$LOCAL_VIVALDI"
     echo "  ✓ Vivaldi power-saving flags added"
 fi
