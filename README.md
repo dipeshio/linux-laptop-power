@@ -1,16 +1,14 @@
-# 🔋 linux-laptop-power
+# linux-laptop-power
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+Shell scripts and configs to tune Linux laptop power usage.
 
-A collection of shell scripts and configuration files to optimize Linux power management on laptops.
+## Structure
+- scripts/ – tuning and monitoring (install.sh, performance_monitor.sh, level* optimizations, power-display-switch.sh)
+- configs/ – tlp.conf, intel-undervolt.conf templates
+- logs/ – placeholders for logs
 
-## Setup
-
-```bash
-chmod +x *.sh
-sudo ./setup.sh
-```
+## Use
+Review configs before applying. Run scripts/install.sh (may need sudo) to deploy configs, then use scripts/display_status.sh to verify settings. Apply level* scripts cautiously based on your hardware.
 
 ## License
-
-MIT © 2026 dipeshio
+MIT
