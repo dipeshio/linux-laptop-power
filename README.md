@@ -1,16 +1,14 @@
-# 🔋 linux-laptop-power
+# linux-laptop-power
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+Scripts and configurations for optimizing laptop power management on Linux. Includes TLP configs and custom power scripts.
 
-A collection of shell scripts and configuration files to optimize Linux power management on laptops.
+## Structure
+- `scripts/` - Power management scripts
+- `configs/` - Configuration files
+- `logs/` - Log files
 
-## Setup
-
-```bash
-chmod +x *.sh
-sudo ./setup.sh
-```
+## Usage
+Copy configs to appropriate system directories and run scripts as needed. May require root access.
 
 ## License
-
-MIT © 2026 dipeshio
+MIT
