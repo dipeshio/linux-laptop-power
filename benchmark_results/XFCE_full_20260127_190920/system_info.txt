@@ -1,0 +1,8 @@
+Hostname: hangs
+Kernel: 6.14.0-37-generic
+CPU: 12th Gen Intel(R) Core(TM) i7-1260P
+Cores: 16
+RAM: 15Gi
+Desktop: XFCE
+Run Type: full
+Date: Tue Jan 27 07:09:20 PM EST 2026
