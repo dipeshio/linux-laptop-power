@@ -21,6 +21,8 @@ declare -A APP_PATTERNS=(
     ["vivaldi"]="vivaldi-bin"
     ["antigravity"]="antigravity"
     ["code"]="code"
+    ["rstudio"]="rstudio"
+    ["positron"]="positron"
 )
 
 STATE_DIR="/tmp/idle_app_suspender"
