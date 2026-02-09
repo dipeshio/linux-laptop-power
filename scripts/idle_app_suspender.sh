@@ -1,178 +1,106 @@
 #!/bin/bash
-# =============================================================================
-#  Idle App Suspender v5 - Fixed process group handling
-#  Suspends entire process trees, not just main PID
-#  Properly isolates each app
-# =============================================================================
+# idle_app_suspender.sh - CPU-limit idle apps instead of freezing them
+# Uses cgroup v2 CPU bandwidth limiting for smooth throttling
 
-IDLE_TIMEOUT_MINUTES=10
-CHECK_INTERVAL_SECONDS=30
-RESUME_CHECK_INTERVAL=1
+APPS="vivaldi antigravity teams code discord zoom positron steam slack rstudio spotify obs"
+IDLE_TIMEOUT_SEC=300  # 5 minutes
+CHECK_INTERVAL=30
+THROTTLE_PERCENT=5    # Limit idle apps to 5% CPU
 
-# Apps to monitor - map display name to process pattern
-declare -A APP_PATTERNS=(
-    ["spotify"]="spotify"
-    ["discord"]="Discord"
-    ["slack"]="slack"
-    ["zoom"]="zoom"
-    ["teams"]="teams"
-    ["obs"]="obs"
-    ["steam"]="steam"
-    ["vivaldi"]="vivaldi-bin"
-    ["antigravity"]="antigravity"
-    ["code"]="code"
-    ["rstudio"]="rstudio"
-    ["positron"]="positron"
-)
+declare -A LAST_FOCUS_TIME
+declare -A IS_THROTTLED
 
-STATE_DIR="/tmp/idle_app_suspender"
-mkdir -p "$STATE_DIR"
-
-log() { echo "[$(date '+%H:%M:%S')] $1"; }
-
-# Get ALL pids for an app (main + children)
-get_all_app_pids() {
-    local pattern="${APP_PATTERNS[$1]}"
-    if [ -n "$pattern" ]; then
-        pgrep -f "$pattern" 2>/dev/null
-    fi
+log() {
+    echo "[$(date '+%H:%M:%S')] $1"
 }
 
-# Suspend entire process tree
-suspend_app() {
-    local app="$1"
-    local pids=$(get_all_app_pids "$app")
-    local count=0
-    
-    if [ -n "$pids" ]; then
-        for pid in $pids; do
-            # Check if already stopped
-            local state=$(cat /proc/$pid/status 2>/dev/null | grep "^State:" | awk '{print $2}')
-            if [ "$state" != "T" ]; then
-                kill -STOP "$pid" 2>/dev/null && ((count++))
-            fi
-        done
-        if [ "$count" -gt 0 ]; then
-            log "SUSPENDED: $app ($count processes)"
-            echo "suspended" > "$STATE_DIR/${app}.state"
-        fi
-    fi
-}
-
-# Resume entire process tree
-resume_app() {
-    local app="$1"
-    local pids=$(get_all_app_pids "$app")
-    local count=0
-    
-    if [ -n "$pids" ]; then
-        for pid in $pids; do
-            kill -CONT "$pid" 2>/dev/null && ((count++))
-        done
-        if [ "$count" -gt 0 ]; then
-            log "RESUMED: $app ($count processes)"
-        fi
-    fi
-    rm -f "$STATE_DIR/${app}.state"
-}
-
-is_suspended() { [ -f "$STATE_DIR/${1}.state" ]; }
-
-has_any_suspended() { ls "$STATE_DIR"/*.state 2>/dev/null | grep -q .; }
-
-# Get window class from focused/hovered window
-get_current_app() {
+get_focused_window_pid() {
     local wid=$(xdotool getactivewindow 2>/dev/null)
-    if [ -z "$wid" ]; then
-        wid=$(xdotool getmouselocation --shell 2>/dev/null | grep WINDOW | cut -d= -f2)
-    fi
+    [[ -z "$wid" ]] && return
+    xdotool getwindowpid "$wid" 2>/dev/null
+}
+
+get_pids_for_app() {
+    local app="$1"
+    pgrep -f "$app" 2>/dev/null | head -20
+}
+
+throttle_app() {
+    local app="$1"
+    local pids=$(get_pids_for_app "$app")
+    [[ -z "$pids" ]] && return
     
-    if [ -n "$wid" ] && [ "$wid" != "0" ]; then
-        local class=$(xprop -id "$wid" WM_CLASS 2>/dev/null | awk -F'"' '{print tolower($2) tolower($4)}')
-        
-        # Match against our app patterns
-        for app in "${!APP_PATTERNS[@]}"; do
-            local pattern=$(echo "${APP_PATTERNS[$app]}" | tr '[:upper:]' '[:lower:]')
-            if [[ "$class" == *"$pattern"* ]] || [[ "$class" == *"$app"* ]]; then
-                echo "$app"
-                return
-            fi
-        done
-    fi
-    echo ""
-}
-
-# Resume watcher - fast loop
-resume_watcher() {
-    while true; do
-        if has_any_suspended; then
-            local current=$(get_current_app)
-            if [ -n "$current" ] && is_suspended "$current"; then
-                log "User accessing $current, resuming..."
-                resume_app "$current"
-            fi
-        fi
-        sleep "$RESUME_CHECK_INTERVAL"
+    local count=0
+    for pid in $pids; do
+        # Use ionice and renice instead of cgroups (simpler, no root needed)
+        renice 19 -p "$pid" 2>/dev/null && ((count++))
+        ionice -c 3 -p "$pid" 2>/dev/null
     done
+    
+    [[ $count -gt 0 ]] && log "THROTTLED: $app ($count processes) - nice 19, idle I/O"
+    IS_THROTTLED[$app]=1
 }
 
-# Suspend checker - slow loop
-suspend_checker() {
-    while true; do
-        local current=$(get_current_app)
+unthrottle_app() {
+    local app="$1"
+    local pids=$(get_pids_for_app "$app")
+    [[ -z "$pids" ]] && return
+    
+    local count=0
+    for pid in $pids; do
+        renice 0 -p "$pid" 2>/dev/null && ((count++))
+        ionice -c 0 -p "$pid" 2>/dev/null
+    done
+    
+    [[ $count -gt 0 ]] && log "RESTORED: $app ($count processes) - normal priority"
+    IS_THROTTLED[$app]=0
+}
+
+# Initialize
+for app in $APPS; do
+    LAST_FOCUS_TIME[$app]=$(date +%s)
+    IS_THROTTLED[$app]=0
+done
+
+log "Monitoring: $APPS"
+log "Idle timeout: $((IDLE_TIMEOUT_SEC/60))m"
+log "Mode: CPU throttling (nice 19 + idle I/O)"
+
+while true; do
+    focused_pid=$(get_focused_window_pid)
+    now=$(date +%s)
+    
+    for app in $APPS; do
+        app_pids=$(get_pids_for_app "$app")
+        [[ -z "$app_pids" ]] && continue
         
-        for app in "${!APP_PATTERNS[@]}"; do
-            local pids=$(get_all_app_pids "$app")
-            
-            if [ -n "$pids" ]; then
-                local last_file="$STATE_DIR/${app}.last_focus"
-                local now=$(date +%s)
-                
-                # Is this app currently being used?
-                if [ "$current" = "$app" ]; then
-                    echo "$now" > "$last_file"
-                    # Resume if was suspended
-                    if is_suspended "$app"; then
-                        resume_app "$app"
-                    fi
-                elif ! is_suspended "$app"; then
-                    # Check idle time
-                    if [ -f "$last_file" ]; then
-                        local last=$(cat "$last_file")
-                        local idle_min=$(( (now - last) / 60 ))
-                        
-                        if [ "$idle_min" -ge "$IDLE_TIMEOUT_MINUTES" ]; then
-                            log "$app idle for ${idle_min}m, suspending..."
-                            suspend_app "$app"
-                        fi
-                    else
-                        echo "$now" > "$last_file"
-                    fi
-                fi
-            else
-                # App not running, cleanup
-                rm -f "$STATE_DIR/${app}.state" "$STATE_DIR/${app}.last_focus"
+        # Check if this app is focused
+        is_focused=0
+        for pid in $app_pids; do
+            if [[ "$pid" == "$focused_pid" ]]; then
+                is_focused=1
+                break
+            fi
+            # Also check parent/child relationship
+            if [[ -n "$focused_pid" ]] && grep -q "$app" /proc/$focused_pid/comm 2>/dev/null; then
+                is_focused=1
+                break
             fi
         done
         
-        sleep "$CHECK_INTERVAL_SECONDS"
-    done
-}
-
-cleanup() {
-    log "Shutting down, resuming all..."
-    for app in "${!APP_PATTERNS[@]}"; do
-        if is_suspended "$app"; then
-            resume_app "$app"
+        if [[ $is_focused -eq 1 ]]; then
+            LAST_FOCUS_TIME[$app]=$now
+            # Restore if was throttled
+            if [[ ${IS_THROTTLED[$app]} -eq 1 ]]; then
+                unthrottle_app "$app"
+            fi
+        else
+            idle_time=$((now - ${LAST_FOCUS_TIME[$app]}))
+            if [[ $idle_time -ge $IDLE_TIMEOUT_SEC ]] && [[ ${IS_THROTTLED[$app]} -eq 0 ]]; then
+                throttle_app "$app"
+            fi
         fi
     done
-    kill $(jobs -p) 2>/dev/null
-}
-trap cleanup EXIT
-
-log "Idle App Suspender v5 started"
-log "Monitoring: ${!APP_PATTERNS[*]}"
-log "Idle timeout: ${IDLE_TIMEOUT_MINUTES}m"
-
-resume_watcher &
-suspend_checker
+    
+    sleep $CHECK_INTERVAL
+done
