@@ -20,22 +20,44 @@ if [[ "$1" == "-n" ]]; then
         exit 1
     fi
     
+    # Get page count for progress feedback
+    PAGE_COUNT=$(qpdf --show-npages "$PDF_FILE" 2>/dev/null)
+    if [[ -z "$PAGE_COUNT" || "$PAGE_COUNT" -eq 0 ]]; then
+        echo "Error: Could not determine page count for $PDF_FILE"
+        echo "The file may be corrupted or not a valid PDF."
+        exit 1
+    fi
+    
     # Create temp output filename
     BASENAME="${PDF_FILE%.pdf}"
     OUTPUT="${BASENAME}_normalized.pdf"
     
     echo "Normalizing: $PDF_FILE"
+    echo "  Total pages: $PAGE_COUNT"
+    
+    # Progress indicator for large files
+    if [[ "$PAGE_COUNT" -gt 75 ]]; then
+        echo "  Processing... (this may take a moment for large PDFs)"
+    fi
     
     # Set page labels starting from 1 using Arabic numerals (D)
-    qpdf "$PDF_FILE" --set-page-labels '1:D' -- "$OUTPUT"
+    # Capture both stdout and stderr
+    QPDF_OUTPUT=$(qpdf "$PDF_FILE" --set-page-labels '1:D' -- "$OUTPUT" 2>&1)
+    QPDF_EXIT=$?
     
-    if [[ $? -eq 0 ]]; then
+    if [[ $QPDF_EXIT -eq 0 ]]; then
         # Replace original with normalized version
         rm "$PDF_FILE"
         mv "$OUTPUT" "$PDF_FILE"
-        echo "✓ Normalized $PDF_FILE (original replaced)"
+        echo "✓ Normalized $PDF_FILE ($PAGE_COUNT pages, original replaced)"
     else
-        echo "✗ qpdf failed"
+        echo "✗ qpdf failed (exit code: $QPDF_EXIT)"
+        if [[ -n "$QPDF_OUTPUT" ]]; then
+            echo "  Error details:"
+            echo "$QPDF_OUTPUT" | sed 's/^/    /'
+        fi
+        # Clean up temp file if it exists
+        [[ -f "$OUTPUT" ]] && rm "$OUTPUT"
         exit 1
     fi
     exit 0

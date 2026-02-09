@@ -1,0 +1,38 @@
+[Unit]
+Description=Laptop Power Optimizer - Battery-Aware Power Management
+Documentation=https://github.com/user/linux-laptop-power
+After=multi-user.target tlp.service
+Wants=tlp.service
+
+[Service]
+Type=simple
+ExecStart=/opt/power-optimizer/laptop/scripts/laptop_power.sh start
+ExecStop=/opt/power-optimizer/laptop/scripts/laptop_power.sh stop
+ExecReload=/opt/power-optimizer/laptop/scripts/laptop_power.sh restart
+
+# Run as root for hardware access
+User=root
+Group=root
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=3
+StartLimitInterval=60
+
+# Environment
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=laptop-power
+
+# Security hardening
+ProtectSystem=false
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

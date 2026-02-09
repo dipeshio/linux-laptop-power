@@ -1,0 +1,43 @@
+[Unit]
+Description=Power Boost Optimizer - Dynamic Workload Performance Manager
+Documentation=https://github.com/user/linux-laptop-power
+After=multi-user.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+
+[Service]
+Type=simple
+ExecStart=/opt/power-optimizer/desktop/scripts/power_boost.sh start
+ExecStop=/opt/power-optimizer/desktop/scripts/power_boost.sh stop
+ExecReload=/opt/power-optimizer/desktop/scripts/power_boost.sh restart
+
+# Run as root for hardware access
+User=root
+Group=root
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=3
+StartLimitInterval=60
+
+# Environment
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=power-boost
+
+# Security hardening (allowing necessary hardware access)
+ProtectSystem=false
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=false
+
+# Resource limits
+Nice=-5
+IOSchedulingClass=realtime
+IOSchedulingPriority=0
+
+[Install]
+WantedBy=multi-user.target
