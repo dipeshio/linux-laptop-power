@@ -1,78 +1,74 @@
 #!/bin/bash
-# tpdf - Textbook PDF cropper with automatic page offset handling
-# Usage: tpdf CLASS START-END OUTPUT.pdf
-# Example: tpdf MATH280 19-31 chapter2.pdf
-# Output goes to ./Segments/ by default, or specify a path like ./other/file.pdf
+# tpdf - Textbook PDF tool
+# Usage: 
+#   tpdf -n FILE.pdf              Normalize page labels (1, 2, 3...)
+#   tpdf FILE.pdf START-END OUT   Extract pages from normalized PDF
+# Output goes to ./Segments/ by default
 
-# === Page Offsets ===
-# These offsets convert BOOK page numbers to PHYSICAL PDF page numbers
-# Physical page = Book page + Offset
-# Add new classes here as needed
-declare -A OFFSETS
-OFFSETS["MATH280"]=13   # Book page 19 = PDF page 33 (33-19=14)
-OFFSETS["MATH358"]=25    # Book page 71 = PDF page 80 (80-71=9)  
-OFFSETS["ECON441"]=24   # Book page 19 = PDF page 43 (43-19=24)
+# === Normalize Mode ===
+if [[ "$1" == "-n" ]]; then
+    PDF_FILE="$2"
+    
+    if [[ -z "$PDF_FILE" ]]; then
+        echo "Usage: tpdf -n FILE.pdf"
+        echo "Normalizes page labels to 1, 2, 3..."
+        exit 1
+    fi
+    
+    if [[ ! -f "$PDF_FILE" ]]; then
+        echo "Error: $PDF_FILE not found"
+        exit 1
+    fi
+    
+    # Create temp output filename
+    BASENAME="${PDF_FILE%.pdf}"
+    OUTPUT="${BASENAME}_normalized.pdf"
+    
+    echo "Normalizing: $PDF_FILE"
+    
+    # Set page labels starting from 1 using Arabic numerals (D)
+    qpdf "$PDF_FILE" --set-page-labels '1:D' -- "$OUTPUT"
+    
+    if [[ $? -eq 0 ]]; then
+        # Replace original with normalized version
+        rm "$PDF_FILE"
+        mv "$OUTPUT" "$PDF_FILE"
+        echo "✓ Normalized $PDF_FILE (original replaced)"
+    else
+        echo "✗ qpdf failed"
+        exit 1
+    fi
+    exit 0
+fi
 
-# === Parse Arguments ===
+# === Extract Mode ===
 if [[ $# -lt 3 ]]; then
-    echo "Usage: tpdf CLASS START-END OUTPUT.pdf"
-    echo "Example: tpdf MATH280 19-31 chapter2.pdf"
+    echo "Usage:"
+    echo "  tpdf -n FILE.pdf              Normalize page labels"
+    echo "  tpdf FILE.pdf START-END OUT   Extract pages"
     echo ""
-    echo "Output goes to ./Segments/ by default."
-    echo "Specify a path to override: tpdf MATH280 1-10 ./other/file.pdf"
-    echo ""
-    echo "Configured classes and offsets:"
-    for class in "${!OFFSETS[@]}"; do
-        echo "  $class: offset +${OFFSETS[$class]}"
-    done
+    echo "Example: tpdf MATH280.pdf 19-31 chapter2.pdf"
     exit 1
 fi
 
-CLASS="$1"
+PDF_FILE="$1"
 RANGE="$2"
 OUTPUT="$3"
-PDF_FILE="${CLASS}.pdf"
 
-# === Validate ===
 if [[ ! -f "$PDF_FILE" ]]; then
-    echo "Error: $PDF_FILE not found in current directory"
+    echo "Error: $PDF_FILE not found"
     exit 1
 fi
 
-if [[ -z "${OFFSETS[$CLASS]}" ]]; then
-    echo "Error: No offset configured for class '$CLASS'"
-    echo "Add it to the OFFSETS array in this script."
-    echo ""
-    echo "Configured classes:"
-    for class in "${!OFFSETS[@]}"; do
-        echo "  $class: offset +${OFFSETS[$class]}"
-    done
-    exit 1
-fi
-
-# === Handle Output Path ===
-# If output doesn't contain a path separator, put it in Segments/
+# Handle output path - default to Segments/
 if [[ "$OUTPUT" != */* ]]; then
     mkdir -p Segments
     OUTPUT="Segments/$OUTPUT"
 fi
 
-# === Calculate Physical Pages ===
-OFFSET="${OFFSETS[$CLASS]}"
-START=$(echo "$RANGE" | cut -d'-' -f1)
-END=$(echo "$RANGE" | cut -d'-' -f2)
+echo "Extracting pages $RANGE from $PDF_FILE → $OUTPUT"
 
-PHYS_START=$((START + OFFSET))
-PHYS_END=$((END + OFFSET))
-
-echo "Class: $CLASS"
-echo "Book pages: $START-$END"
-echo "Physical pages: $PHYS_START-$PHYS_END (offset +$OFFSET)"
-echo "Output: $OUTPUT"
-echo ""
-
-# === Run qpdf ===
-qpdf "$PDF_FILE" --pages . "$PHYS_START-$PHYS_END" -- "$OUTPUT"
+qpdf "$PDF_FILE" --pages . "$RANGE" -- "$OUTPUT"
 
 if [[ $? -eq 0 ]]; then
     echo "✓ Created $OUTPUT"
@@ -80,4 +76,3 @@ else
     echo "✗ qpdf failed"
     exit 1
 fi
-
